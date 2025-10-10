@@ -7,31 +7,89 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inference Results</title>
     <style>
+        :root {
+            color-scheme: light;
+            --background-color: #f4f4f9;
+            --text-color: #333;
+            --container-background: #ffffff;
+            --container-shadow: rgba(0, 0, 0, 0.05);
+            --timing-background: #eef;
+            --border-color: #ddd;
+            --image-border: #ccc;
+            --input-border: #007bff;
+            --ground-truth-border: #28a745;
+            --button-background: #333;
+            --button-text: #ffffff;
+        }
+
+        body.dark-mode {
+            color-scheme: dark;
+            --background-color: #1e1e2f;
+            --text-color: #f4f4f9;
+            --container-background: #2a2a3d;
+            --container-shadow: rgba(0, 0, 0, 0.4);
+            --timing-background: #2f3653;
+            --border-color: #3d3d5c;
+            --image-border: #4a4a6a;
+            --input-border: #66a3ff;
+            --ground-truth-border: #54c57c;
+            --button-background: #f4f4f9;
+            --button-text: #1e1e2f;
+        }
+
         body {
             font-family: sans-serif;
             margin: 2em;
-            background-color: #f4f4f9;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         h1,
         h2 {
-            color: #333;
+            color: var(--text-color);
         }
 
         .container {
             max-width: 1200px;
             margin: auto;
-            background: white;
+            background: var(--container-background);
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 0 10px var(--container-shadow);
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .theme-toggle {
+            background-color: var(--button-background);
+            color: var(--button-text);
+            border: none;
+            border-radius: 20px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .theme-toggle:focus-visible {
+            outline: 2px solid var(--button-text);
+            outline-offset: 2px;
         }
 
         .timing-info {
-            background-color: #eef;
+            background-color: var(--timing-background);
             padding: 15px;
             border-radius: 5px;
             margin-bottom: 20px;
+            transition: background-color 0.3s ease;
         }
 
         .timing-info p {
@@ -45,10 +103,11 @@
         }
 
         .result-card {
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             border-radius: 5px;
             padding: 10px;
             text-align: center;
+            transition: border-color 0.3s ease;
         }
 
         .result-card h3 {
@@ -70,16 +129,17 @@
         .image-trio img {
             max-width: 100%;
             height: auto;
-            border: 1px solid #ccc;
+            border: 1px solid var(--image-border);
+            transition: border-color 0.3s ease;
         }
 
         .input-images {
-            border-right: 2px solid #007bff;
+            border-right: 2px solid var(--input-border);
             padding-right: 10px;
         }
 
         .ground-truth {
-            border-right: 2px solid #28a745;
+            border-right: 2px solid var(--ground-truth-border);
             padding-right: 10px;
         }
     </style>
@@ -87,7 +147,12 @@
 
 <body>
     <div class="container">
-        <h1>Local Model Inference Report</h1>
+        <div class="header">
+            <h1>Local Model Inference Report</h1>
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false">
+                Toggle dark mode
+            </button>
+        </div>
         <p><strong>Model:</strong> {{ model_name }} | <strong>Modality:</strong> {{ modality }}</p>
 
         {% for benchmark in benchmarks %}
@@ -130,6 +195,43 @@
             {% endfor %}
         </div>
     </div>
+    <script>
+        (function () {
+            const body = document.body;
+            const toggleButton = document.getElementById('theme-toggle');
+            const storageKey = 'inference-report-theme';
+
+            const applyTheme = (mode) => {
+                const isDark = mode === 'dark';
+                body.classList.toggle('dark-mode', isDark);
+                toggleButton.setAttribute('aria-pressed', String(isDark));
+                toggleButton.textContent = isDark ? 'Switch to light mode' : 'Toggle dark mode';
+            };
+
+            const storedPreference = localStorage.getItem(storageKey);
+            if (storedPreference) {
+                applyTheme(storedPreference);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                applyTheme('dark');
+            }
+
+            toggleButton.addEventListener('click', () => {
+                const isDark = body.classList.toggle('dark-mode');
+                const mode = isDark ? 'dark' : 'light';
+                toggleButton.setAttribute('aria-pressed', String(isDark));
+                toggleButton.textContent = isDark ? 'Switch to light mode' : 'Toggle dark mode';
+                localStorage.setItem(storageKey, mode);
+            });
+
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
+                const preference = localStorage.getItem(storageKey);
+                if (preference) {
+                    return;
+                }
+                applyTheme(event.matches ? 'dark' : 'light');
+            });
+        })();
+    </script>
 </body>
 
 </html>
