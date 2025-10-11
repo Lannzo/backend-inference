@@ -2,6 +2,65 @@ const DEFAULT_VIEW = [14.65, 121.05];
 const DEFAULT_ZOOM = 11;
 const RASTER_PANE = "rasterPane";
 const QC_BOUNDARY_PANE = "qcBoundaryPane";
+const GROUND_TRUTH_PANE = "groundTruthPane";
+
+const GROUND_TRUTH_CONFIG = {
+    url: "/static/map/groundtruth.tif",
+    name: "Ground Truth Reference",
+    color: "rgba(255, 140, 0, 0.7)",
+    opacity: 0.8,
+};
+
+let groundTruthGeorasterPromise = null;
+
+async function loadGroundTruthGeoraster() {
+    if (!groundTruthGeorasterPromise) {
+        groundTruthGeorasterPromise = (async () => {
+            const parseGeoraster = window.parseGeoraster;
+            if (typeof parseGeoraster !== "function") {
+                throw new Error("GeoRaster parser is not available.");
+            }
+
+            const response = await fetch(GROUND_TRUTH_CONFIG.url);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch ground truth raster: ${response.status}`);
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+            return parseGeoraster(arrayBuffer);
+        })().catch((error) => {
+            groundTruthGeorasterPromise = null;
+            throw error;
+        });
+    }
+
+    return groundTruthGeorasterPromise;
+}
+
+async function createGroundTruthLayer() {
+    const GeoRasterLayer = window.GeoRasterLayer;
+    if (typeof GeoRasterLayer !== "function") {
+        throw new Error("GeoRasterLayer is not available.");
+    }
+
+    const georaster = await loadGroundTruthGeoraster();
+
+    return new GeoRasterLayer({
+        georaster,
+        opacity: GROUND_TRUTH_CONFIG.opacity,
+        resolution: 256,
+        pane: GROUND_TRUTH_PANE,
+        debugLevel: 0,
+        pixelValuesToColorFn: (values) => {
+            const rawValue = Array.isArray(values) ? values[0] : values;
+            const numericValue = Number(rawValue);
+            if (!Number.isFinite(numericValue) || numericValue <= 0) {
+                return null;
+            }
+            return GROUND_TRUTH_CONFIG.color;
+        },
+    });
+}
 
 // --- Custom Leaflet Control for Info Labels ---
 const InfoLabelControl = L.Control.extend({
@@ -105,6 +164,10 @@ export function createMapController({
   map.getPane(QC_BOUNDARY_PANE).style.zIndex = 500;
   map.getPane(QC_BOUNDARY_PANE).style.pointerEvents = 'none';
 
+  map.createPane(GROUND_TRUTH_PANE);
+  map.getPane(GROUND_TRUTH_PANE).style.zIndex = 350;
+  map.getPane(GROUND_TRUTH_PANE).style.pointerEvents = 'none';
+
   let qcBoundaryLayer = null;
 
   const qcBoundaryStyle = {
@@ -157,15 +220,46 @@ export function createMapController({
     }
   }
 
+  let groundTruthLayer = null;
+  let registerGroundTruthWithControl = false;
+  let groundTruthLayerAddedToControl = false;
+
+  function ensureGroundTruthLayerRegistration() {
+    if (groundTruthLayer && layerControl && !groundTruthLayerAddedToControl) {
+      layerControl.addBaseLayer(groundTruthLayer, GROUND_TRUTH_CONFIG.name);
+      registerGroundTruthWithControl = false;
+      groundTruthLayerAddedToControl = true;
+    }
+  }
+
   createBaseLayers(map, onStatusUpdate)
-    .then((control) => { 
+    .then((control) => {
       layerControl = control;
       while (pendingOverlayRegistrations.length > 0) {
         const { layer, name } = pendingOverlayRegistrations.shift();
         layerControl.addOverlay(layer, name);
       }
+      if (registerGroundTruthWithControl) {
+        ensureGroundTruthLayerRegistration();
+      }
     })
     .catch((error) => console.error("Failed to initialise base layers", error));
+
+  createGroundTruthLayer()
+    .then((layer) => {
+      groundTruthLayer = layer;
+      if (layerControl) {
+        ensureGroundTruthLayerRegistration();
+      } else {
+        registerGroundTruthWithControl = true;
+      }
+    })
+    .catch((error) => {
+      console.error("Failed to load ground truth layer", error);
+      if (onStatusUpdate) {
+        onStatusUpdate("Could not load ground truth reference layer.");
+      }
+    });
 
   let maskVisible = true;
   let inputLayer = null;
@@ -198,6 +292,9 @@ export function createMapController({
   }
 
   map.on("overlayadd", (event) => {
+    if (event.layer === groundTruthLayer) {
+        return;
+    }
     const overlay = overlays.get(event.layer);
     if (overlay) {
         if (!isGlobalMaskToggleInProgress) overlay.shouldDisplay = true;
@@ -206,6 +303,9 @@ export function createMapController({
   });
 
   map.on("overlayremove", (event) => {
+    if (event.layer === groundTruthLayer) {
+        return;
+    }
     const overlay = overlays.get(event.layer);
     if (overlay) {
         if (!isGlobalMaskToggleInProgress) overlay.shouldDisplay = false;
