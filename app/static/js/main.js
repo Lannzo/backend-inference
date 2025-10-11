@@ -1,5 +1,5 @@
 import { createMapController } from "./map.js";
-import { bindHeroInteractions, createUIController, wireModelModalityBehavior } from "./ui.js";
+import { bindHeroInteractions, createUIController, initialiseThemeToggle, wireModelModalityBehavior } from "./ui.js";
 import { initializeUploadWorkflow } from "./upload.js";
 
 // --- Global state ---
@@ -186,6 +186,10 @@ function initialise() {
     panelToggleBtn: selectElement("#panel-toggle-btn"),
     toggleQCBoundary: selectElement("#toggle-qc-boundary"),
   };
+
+  initialiseThemeToggle({
+    toggleButton: document.querySelector("#theme-toggle"),
+  });
 
   bindHeroInteractions({
     navLinks: document.querySelectorAll(".nav-link"),

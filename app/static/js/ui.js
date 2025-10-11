@@ -200,3 +200,80 @@ export function bindHeroInteractions({ navLinks, navContainer, navHandle }) {
 
   handleScroll();
 }
+
+export function initialiseThemeToggle({ toggleButton }) {
+  if (!toggleButton) {
+    return;
+  }
+
+  const root = document.documentElement;
+  const labelElement = toggleButton.querySelector('[data-theme-label]');
+  const storageKey = 'settlenet-theme';
+
+  const getStoredTheme = () => {
+    try {
+      return localStorage.getItem(storageKey);
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const setStoredTheme = (theme) => {
+    try {
+      localStorage.setItem(storageKey, theme);
+    } catch (error) {
+      // Ignore storage errors (e.g. private mode)
+    }
+  };
+
+  const updateButtonState = (theme) => {
+    const isDark = theme === 'dark';
+    const labelText = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+    toggleButton.setAttribute('aria-pressed', String(isDark));
+    toggleButton.setAttribute('aria-label', labelText);
+    toggleButton.setAttribute('title', labelText);
+    if (labelElement) {
+      labelElement.textContent = labelText;
+    }
+  };
+
+  const applyTheme = (theme, { persist } = { persist: false }) => {
+    const resolved = theme === 'dark' ? 'dark' : 'light';
+    root.dataset.theme = resolved;
+    updateButtonState(resolved);
+    if (persist) {
+      setStoredTheme(resolved);
+    }
+  };
+
+  const storedTheme = getStoredTheme();
+  if (storedTheme === 'dark' || storedTheme === 'light') {
+    applyTheme(storedTheme);
+  } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    applyTheme('dark');
+  } else {
+    applyTheme('light');
+  }
+
+  toggleButton.addEventListener('click', () => {
+    const nextTheme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    applyTheme(nextTheme, { persist: true });
+  });
+
+  if (window.matchMedia) {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handlePreferenceChange = (event) => {
+      const stored = getStoredTheme();
+      if (stored === 'dark' || stored === 'light') {
+        return;
+      }
+      applyTheme(event.matches ? 'dark' : 'light');
+    };
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handlePreferenceChange);
+    } else if (typeof mediaQuery.addListener === 'function') {
+      mediaQuery.addListener(handlePreferenceChange);
+    }
+  }
+}
