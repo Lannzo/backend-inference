@@ -106,15 +106,16 @@ function unsyncMaps() {
 // ---
 
 function updateMapLayout(count) {
+    const normalizedCount = Math.max(1, Math.min(6, Number(count) || 1));
     const container = selectElement("#map-view-container");
     container.innerHTML = '';
-    container.dataset.mapCount = count;
-    
+    container.dataset.mapCount = String(normalizedCount);
+
     unsyncMaps();
     mapControllers.forEach(controller => controller.teardown());
     mapControllers = [];
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < normalizedCount; i++) {
         const mapId = `map-instance-${i}`;
         const mapDiv = document.createElement('div');
         mapDiv.id = mapId;
@@ -212,11 +213,20 @@ function initialise() {
   });
   
   elements.panelToggleBtn.addEventListener('click', () => {
+    const centers = mapControllers.map(controller => controller.mapInstance.getCenter());
+    const zooms = mapControllers.map(controller => controller.mapInstance.getZoom());
     const isCollapsed = elements.mapSection.classList.toggle('is-panel-collapsed');
     elements.panelToggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
     setTimeout(() => {
-      mapControllers.forEach(c => c.invalidateSize());
-    }, 350);
+      mapControllers.forEach((controller, index) => {
+        controller.invalidateSize();
+        const center = centers[index];
+        const zoom = zooms[index];
+        if (center && typeof zoom === 'number') {
+          setTimeout(() => controller.mapInstance.setView(center, zoom, { animate: false }), 24);
+        }
+      });
+    }, 360);
   });
 
   elements.toggleQCBoundary.addEventListener('change', (e) => {
